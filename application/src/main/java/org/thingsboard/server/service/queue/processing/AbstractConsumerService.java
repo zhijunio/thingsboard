@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,16 +26,17 @@ import org.thingsboard.server.actors.ActorSystemContext;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.AssetProfileId;
-import org.thingsboard.server.common.data.id.CalculatedFieldId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
+import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.TenantProfileId;
 import org.thingsboard.server.common.data.plugin.ComponentLifecycleEvent;
 import org.thingsboard.server.common.msg.plugin.ComponentLifecycleMsg;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TbCallback;
+import org.thingsboard.server.dao.resource.TbResourceDataCache;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.queue.TbQueueConsumer;
 import org.thingsboard.server.queue.common.TbProtoQueueMsg;
@@ -45,7 +46,6 @@ import org.thingsboard.server.queue.discovery.TbApplicationEventListener;
 import org.thingsboard.server.queue.discovery.event.PartitionChangeEvent;
 import org.thingsboard.server.queue.util.AfterStartUp;
 import org.thingsboard.server.service.apiusage.TbApiUsageStateService;
-import org.thingsboard.server.service.cf.CalculatedFieldCache;
 import org.thingsboard.server.service.profile.TbAssetProfileCache;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
 import org.thingsboard.server.service.queue.TbPackCallback;
@@ -72,7 +72,7 @@ public abstract class AbstractConsumerService<N extends com.google.protobuf.Gene
     protected final TbTenantProfileCache tenantProfileCache;
     protected final TbDeviceProfileCache deviceProfileCache;
     protected final TbAssetProfileCache assetProfileCache;
-    protected final CalculatedFieldCache calculatedFieldCache;
+    protected final TbResourceDataCache tbResourceDataCache;
     protected final TbApiUsageStateService apiUsageStateService;
     protected final PartitionService partitionService;
     protected final ApplicationEventPublisher eventPublisher;
@@ -131,13 +131,13 @@ public abstract class AbstractConsumerService<N extends com.google.protobuf.Gene
     protected void processNotifications(List<TbProtoQueueMsg<N>> msgs, TbQueueConsumer<TbProtoQueueMsg<N>> consumer) throws Exception {
         List<IdMsgPair<N>> orderedMsgList = msgs.stream().map(msg -> new IdMsgPair<>(UUID.randomUUID(), msg)).toList();
         ConcurrentMap<UUID, TbProtoQueueMsg<N>> pendingMap = orderedMsgList.stream().collect(
-                Collectors.toConcurrentMap(IdMsgPair::getUuid, IdMsgPair::getMsg));
+                Collectors.toConcurrentMap(IdMsgPair::uuid, IdMsgPair::msg));
         CountDownLatch processingTimeoutLatch = new CountDownLatch(1);
         TbPackProcessingContext<TbProtoQueueMsg<N>> ctx = new TbPackProcessingContext<>(
                 processingTimeoutLatch, pendingMap, new ConcurrentHashMap<>());
         orderedMsgList.forEach(element -> {
-            UUID id = element.getUuid();
-            TbProtoQueueMsg<N> msg = element.getMsg();
+            UUID id = element.uuid();
+            TbProtoQueueMsg<N> msg = element.msg();
             log.trace("[{}] Creating notification callback for message: {}", id, msg.getValue());
             TbCallback callback = new TbPackCallback<>(id, ctx);
             try {
@@ -194,14 +194,9 @@ public abstract class AbstractConsumerService<N extends com.google.protobuf.Gene
             if (componentLifecycleMsg.getEvent() == ComponentLifecycleEvent.DELETED) {
                 apiUsageStateService.onCustomerDelete((CustomerId) componentLifecycleMsg.getEntityId());
             }
-        } else if (EntityType.CALCULATED_FIELD.equals(componentLifecycleMsg.getEntityId().getEntityType())) {
-            if (componentLifecycleMsg.getEvent() == ComponentLifecycleEvent.CREATED) {
-                calculatedFieldCache.addCalculatedField(tenantId, (CalculatedFieldId) componentLifecycleMsg.getEntityId());
-            } else if (componentLifecycleMsg.getEvent() == ComponentLifecycleEvent.UPDATED) {
-                calculatedFieldCache.updateCalculatedField(tenantId, (CalculatedFieldId) componentLifecycleMsg.getEntityId());
-            } else {
-                calculatedFieldCache.evict((CalculatedFieldId) componentLifecycleMsg.getEntityId());
-            }
+        } else if (EntityType.TB_RESOURCE.equals(componentLifecycleMsg.getEntityId().getEntityType())) {
+            tbResourceDataCache.evictResourceData(tenantId, new TbResourceId(componentLifecycleMsg.getEntityId().getId()));
+            return;
         }
 
         eventPublisher.publishEvent(componentLifecycleMsg);

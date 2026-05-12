@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2025 The Thingsboard Authors
+/// Copyright © 2016-2026 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import { BaseData } from '@shared/models/base-data';
 import { RuleChainId } from '@shared/models/id/rule-chain-id';
 import { RuleNodeId } from '@shared/models/id/rule-node-id';
 import { ComponentDescriptor } from '@shared/models/component-descriptor.models';
-import { FcEdge, FcNode } from 'ngx-flowchart';
+import { FcEdge, FcNode, FcNote } from 'ngx-flowchart';
 import { Observable } from 'rxjs';
 import { PageComponent } from '@shared/components/page.component';
 import { AfterViewInit, DestroyRef, Directive, EventEmitter, inject, OnInit } from '@angular/core';
@@ -27,6 +27,7 @@ import { RuleChainType } from '@shared/models/rule-chain.models';
 import { DebugRuleNodeEventBody } from '@shared/models/event.models';
 import { EntityTestScriptResult, HasEntityDebugSettings } from '@shared/models/entity.models';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { strings } from '@angular-devkit/core';
 
 export interface RuleNodeConfiguration {
   [key: string]: any;
@@ -358,6 +359,19 @@ export interface FcRuleEdge extends FcEdge {
   labels?: string[];
 }
 
+export const FC_RULE_NOTE_DEFAULT_BACKGROUND_COLOR = '#FFF9C4';
+export const FC_RULE_NOTE_DEFAULT_BORDER_WIDTH = 1;
+export const FC_RULE_NOTE_DEFAULT_APPLY_MARKDOWN_STYLE = true;
+
+export interface FcRuleNote extends FcNote {
+  content?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  applyDefaultMarkdownStyle?: boolean;
+  markdownCss?: string;
+}
+
 export enum ScriptLanguage {
   JS = 'JS',
   TBEL = 'TBEL'
@@ -476,15 +490,24 @@ const ruleNodeClazzHelpLinkMap = {
   'org.thingsboard.rule.engine.metadata.TbGetTenantDetailsNode': 'ruleNodeTenantDetails',
   'org.thingsboard.rule.engine.metadata.CalculateDeltaNode': 'ruleNodeCalculateDelta',
   'org.thingsboard.rule.engine.transform.TbChangeOriginatorNode': 'ruleNodeChangeOriginator',
+  'org.thingsboard.rule.engine.transform.TbCopyKeysNode': 'ruleNodeCopyKeyValuePairs',
+  'org.thingsboard.rule.engine.deduplication.TbMsgDeduplicationNode': 'ruleNodeDeduplication',
+  'org.thingsboard.rule.engine.transform.TbDeleteKeysNode': 'ruleNodeDeleteKeyValuePairs',
+  'org.thingsboard.rule.engine.transform.TbJsonPathNode': 'ruleNodeJsonPath',
+  'org.thingsboard.rule.engine.transform.TbRenameKeysNode': 'ruleNodeRenameKeys',
   'org.thingsboard.rule.engine.transform.TbTransformMsgNode': 'ruleNodeTransformMsg',
+  'org.thingsboard.rule.engine.transform.TbSplitArrayMsgNode': 'ruleNodeSplitArrayMsg',
   'org.thingsboard.rule.engine.mail.TbMsgToEmailNode': 'ruleNodeMsgToEmail',
   'org.thingsboard.rule.engine.action.TbAssignToCustomerNode': 'ruleNodeAssignToCustomer',
   'org.thingsboard.rule.engine.action.TbUnassignFromCustomerNode': 'ruleNodeUnassignFromCustomer',
   'org.thingsboard.rule.engine.telemetry.TbCalculatedFieldsNode': 'ruleNodeCalculatedFields',
   'org.thingsboard.rule.engine.action.TbClearAlarmNode': 'ruleNodeClearAlarm',
   'org.thingsboard.rule.engine.action.TbCreateAlarmNode': 'ruleNodeCreateAlarm',
+  'org.thingsboard.rule.engine.action.TbCopyAttributesToEntityViewNode': 'ruleNodeCopyToView',
   'org.thingsboard.rule.engine.action.TbCreateRelationNode': 'ruleNodeCreateRelation',
   'org.thingsboard.rule.engine.action.TbDeleteRelationNode': 'ruleNodeDeleteRelation',
+  'org.thingsboard.rule.engine.action.TbDeviceStateNode': 'ruleNodeDeviceState',
+  'org.thingsboard.rule.engine.action.TbMsgCountNode': 'ruleNodeMessageCount',
   'org.thingsboard.rule.engine.delay.TbMsgDelayNode': 'ruleNodeMsgDelay',
   'org.thingsboard.rule.engine.debug.TbMsgGeneratorNode': 'ruleNodeMsgGenerator',
   'org.thingsboard.rule.engine.geo.TbGpsGeofencingActionNode': 'ruleNodeGpsGeofencingEvents',
@@ -492,20 +515,24 @@ const ruleNodeClazzHelpLinkMap = {
   'org.thingsboard.rule.engine.rpc.TbSendRPCReplyNode': 'ruleNodeRpcCallReply',
   'org.thingsboard.rule.engine.rpc.TbSendRPCRequestNode': 'ruleNodeRpcCallRequest',
   'org.thingsboard.rule.engine.telemetry.TbMsgAttributesNode': 'ruleNodeSaveAttributes',
+  'org.thingsboard.rule.engine.telemetry.TbMsgDeleteAttributesNode': 'ruleNodeDeleteAttributes',
   'org.thingsboard.rule.engine.telemetry.TbMsgTimeseriesNode': 'ruleNodeSaveTimeseries',
   'org.thingsboard.rule.engine.action.TbSaveToCustomCassandraTableNode': 'ruleNodeSaveToCustomTable',
   'org.thingsboard.rule.engine.aws.lambda.TbAwsLambdaNode': 'ruleNodeAwsLambda',
+  'org.thingsboard.rule.engine.ai.TbAiNode': 'ruleNodeAiRequest',
   'org.thingsboard.rule.engine.aws.sns.TbSnsNode': 'ruleNodeAwsSns',
   'org.thingsboard.rule.engine.aws.sqs.TbSqsNode': 'ruleNodeAwsSqs',
   'org.thingsboard.rule.engine.kafka.TbKafkaNode': 'ruleNodeKafka',
   'org.thingsboard.rule.engine.mqtt.TbMqttNode': 'ruleNodeMqtt',
   'org.thingsboard.rule.engine.mqtt.azure.TbAzureIotHubNode': 'ruleNodeAzureIotHub',
+  'org.thingsboard.rule.engine.gcp.pubsub.TbPubSubNode': 'ruleNodeGcpPubSub',
   'org.thingsboard.rule.engine.rabbitmq.TbRabbitMqNode': 'ruleNodeRabbitMq',
   'org.thingsboard.rule.engine.rest.TbRestApiCallNode': 'ruleNodeRestApiCall',
   'org.thingsboard.rule.engine.mail.TbSendEmailNode': 'ruleNodeSendEmail',
   'org.thingsboard.rule.engine.sms.TbSendSmsNode': 'ruleNodeSendSms',
   'org.thingsboard.rule.engine.edge.TbMsgPushToCloudNode': 'ruleNodePushToCloud',
   'org.thingsboard.rule.engine.edge.TbMsgPushToEdgeNode': 'ruleNodePushToEdge',
+  'org.thingsboard.rule.engine.profile.TbDeviceProfileNode': 'ruleNodeDeviceProfile',
   'org.thingsboard.rule.engine.flow.TbRuleChainInputNode': 'ruleNodeRuleChain',
   'org.thingsboard.rule.engine.flow.TbRuleChainOutputNode': 'ruleNodeOutputNode',
   'org.thingsboard.rule.engine.flow.TbAckNode': 'ruleNodeAcknowledge',

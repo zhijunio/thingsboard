@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.common.data.asset;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.EqualsAndHashCode;
@@ -29,6 +30,7 @@ import org.thingsboard.server.common.data.HasVersion;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.AssetProfileId;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
@@ -125,6 +127,11 @@ public class Asset extends BaseDataWithAdditionalInfo<AssetId> implements HasLab
         this.customerId = customerId;
     }
 
+    @JsonIgnore
+    public EntityId getOwnerId() {
+        return customerId != null && !customerId.isNullUid() ? customerId : tenantId;
+    }
+
     @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Unique Asset Name in scope of Tenant", example = "Empire State Building")
     @Override
     public String getName() {
@@ -162,7 +169,10 @@ public class Asset extends BaseDataWithAdditionalInfo<AssetId> implements HasLab
         this.assetProfileId = assetProfileId;
     }
 
-    @Schema(description = "Additional parameters of the asset",implementation = com.fasterxml.jackson.databind.JsonNode.class)
+    @Schema(description = "Additional parameters of the asset. " +
+            "May include: 'description' (string).",
+            implementation = com.fasterxml.jackson.databind.JsonNode.class,
+            example = "{\"description\":\"Building A asset\"}")
     @Override
     public JsonNode getAdditionalInfo() {
         return super.getAdditionalInfo();

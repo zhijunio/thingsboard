@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2025 The Thingsboard Authors
+/// Copyright © 2016-2026 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -85,7 +85,9 @@ export enum MenuId {
   domains = 'domains',
   clients = 'clients',
   audit_log = 'audit_log',
+  alarms_center = 'alarms_center',
   alarms = 'alarms',
+  alarm_rules = 'alarm_rules',
   dashboards = 'dashboards',
   entities = 'entities',
   devices = 'devices',
@@ -96,6 +98,7 @@ export enum MenuId {
   device_profiles = 'device_profiles',
   asset_profiles = 'asset_profiles',
   customers = 'customers',
+  calculated_fields = 'calculated_fields',
   rule_chains = 'rule_chains',
   edge_management = 'edge_management',
   edges = 'edges',
@@ -105,7 +108,8 @@ export enum MenuId {
   otaUpdates = 'otaUpdates',
   version_control = 'version_control',
   api_usage = 'api_usage',
-  trendz_settings = 'trendz_settings'
+  trendz_settings = 'trendz_settings',
+  ai_models = 'ai_models'
 }
 
 declare type MenuFilter = (authState: AuthState) => boolean;
@@ -284,6 +288,16 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
       type: 'link',
       path: '/notification/rules',
       icon: 'mdi:message-cog'
+    }
+  ],
+  [
+    MenuId.ai_models,
+    {
+      id: MenuId.ai_models,
+      name: 'ai-models.ai-models',
+      type: 'link',
+      path: '/settings/ai-models',
+      icon: 'auto_awesome'
     }
   ],
   [
@@ -484,13 +498,33 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     }
   ],
   [
-    MenuId.alarms,
+    MenuId.alarms_center,
     {
-      id: MenuId.alarms,
+      id: MenuId.alarms_center,
       name: 'alarm.alarms',
       type: 'link',
       path: '/alarms',
       icon: 'mdi:alert-outline'
+    }
+  ],
+  [
+    MenuId.alarms,
+    {
+      id: MenuId.alarms,
+      name: 'alarm.alarm-list',
+      type: 'link',
+      path: '/alarms/alarms',
+      icon: 'mdi:alert-outline'
+    }
+  ],
+  [
+    MenuId.alarm_rules,
+    {
+      id: MenuId.alarm_rules,
+      name: 'alarm-rule.alarm-rules',
+      type: 'link',
+      path: '/alarms/alarm-rules',
+      icon: 'tune'
     }
   ],
   [
@@ -591,6 +625,16 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
       type: 'link',
       path: '/customers',
       icon: 'supervisor_account'
+    }
+  ],
+  [
+    MenuId.calculated_fields,
+    {
+      id: MenuId.calculated_fields,
+      name: 'entity.type-calculated-fields',
+      type: 'link',
+      path: '/calculatedFields',
+      icon: 'mdi:function-variant',
     }
   ],
   [
@@ -772,7 +816,8 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
               {id: MenuId.domains},
               {id: MenuId.clients}
             ]
-          }
+          },
+          {id: MenuId.audit_log}
         ]
       }
     ]
@@ -781,7 +826,13 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
     Authority.TENANT_ADMIN,
     [
       {id: MenuId.home},
-      {id: MenuId.alarms},
+      {
+        id: MenuId.alarms_center,
+        pages: [
+          {id: MenuId.alarms},
+          {id: MenuId.alarm_rules}
+        ]
+      },
       {id: MenuId.dashboards},
       {
         id: MenuId.entities,
@@ -800,6 +851,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         ]
       },
       {id: MenuId.customers},
+      {id: MenuId.calculated_fields},
       {id: MenuId.rule_chains},
       {
         id: MenuId.edge_management,
@@ -856,7 +908,8 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.notification_settings},
           {id: MenuId.repository_settings},
           {id: MenuId.auto_commit_settings},
-          {id: MenuId.trendz_settings}
+          {id: MenuId.trendz_settings},
+          {id: MenuId.ai_models}
         ]
       },
       {

@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,20 @@
  */
 package org.thingsboard.server.service.edge;
 
+import jakarta.annotation.PreDestroy;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.thingsboard.common.util.ThingsBoardExecutors;
 import org.thingsboard.server.cache.limits.RateLimitService;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.msg.notification.NotificationRuleProcessor;
+import org.thingsboard.server.dao.ai.AiModelService;
+import org.thingsboard.server.dao.pat.ApiKeyService;
 import org.thingsboard.server.dao.alarm.AlarmCommentService;
 import org.thingsboard.server.dao.alarm.AlarmService;
 import org.thingsboard.server.dao.asset.AssetProfileService;
@@ -38,6 +43,7 @@ import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.domain.DomainService;
 import org.thingsboard.server.dao.edge.EdgeEventService;
 import org.thingsboard.server.dao.edge.EdgeService;
+import org.thingsboard.server.dao.edge.stats.EdgeStatsCounterService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.notification.NotificationRuleService;
 import org.thingsboard.server.dao.notification.NotificationTargetService;
@@ -58,6 +64,8 @@ import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.edge.rpc.EdgeEventStorageSettings;
 import org.thingsboard.server.service.edge.rpc.EdgeRpcService;
 import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.ai.AiModelProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.apikey.ApiKeyProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.AlarmProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.comment.AlarmCommentProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.asset.AssetEdgeProcessor;
@@ -72,12 +80,17 @@ import org.thingsboard.server.service.edge.rpc.processor.resource.ResourceEdgePr
 import org.thingsboard.server.service.edge.rpc.processor.rule.RuleChainEdgeProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.rule.RuleChainMetadataEdgeProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.telemetry.TelemetryEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.user.UserProcessor;
 import org.thingsboard.server.service.edge.rpc.sync.EdgeRequestsService;
 import org.thingsboard.server.service.executors.GrpcCallbackExecutorService;
+import org.thingsboard.server.service.telemetry.TelemetrySubscriptionService;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 @Lazy
 @Data
@@ -88,17 +101,31 @@ public class EdgeContextComponent {
 
     private final Map<EdgeEventType, EdgeProcessor> processorMap = new EnumMap<>(EdgeEventType.class);
 
+    private ScheduledExecutorService edgeEventProcessingExecutorService;
+
     @Autowired
-    public EdgeContextComponent(List<EdgeProcessor> processors) {
+    public EdgeContextComponent(List<EdgeProcessor> processors,
+                                @Value("${edges.scheduler_pool_size}") int schedulerPoolSize) {
         processors.forEach(processor -> {
             EdgeEventType eventType = processor.getEdgeEventType();
             if (eventType != null) {
                 processorMap.put(eventType, processor);
             }
         });
+        this.edgeEventProcessingExecutorService = ThingsBoardExecutors.newScheduledThreadPool(schedulerPoolSize, "edge-event-check-scheduler");
+    }
+
+    @PreDestroy
+    private void destroy() {
+        if (edgeEventProcessingExecutorService != null && !edgeEventProcessingExecutorService.isShutdown()) {
+            edgeEventProcessingExecutorService.shutdownNow();
+        }
     }
 
     // services
+    @Autowired
+    private TelemetrySubscriptionService tsSubService;
+
     @Autowired
     private AdminSettingsService adminSettingsService;
 
@@ -198,6 +225,8 @@ public class EdgeContextComponent {
     @Autowired
     private WidgetsBundleService widgetsBundleService;
 
+    @Autowired
+    private Optional<EdgeStatsCounterService> statsCounterService;
 
     // processors
     @Autowired
@@ -255,6 +284,21 @@ public class EdgeContextComponent {
 
     @Autowired
     private CalculatedFieldProcessor calculatedFieldProcessor;
+
+    @Autowired
+    private AiModelService aiModelService;
+
+    @Autowired
+    private AiModelProcessor aiModelProcessor;
+
+    @Autowired
+    private ApiKeyService apiKeyService;
+
+    @Autowired
+    private ApiKeyProcessor apiKeyProcessor;
+
+    @Autowired
+    private UserProcessor userProcessor;
 
     public EdgeProcessor getProcessor(EdgeEventType edgeEventType) {
         EdgeProcessor processor = processorMap.get(edgeEventType);

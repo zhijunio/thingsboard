@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,9 +41,6 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * Created by ashvayka on 13.01.18.
- */
 @Data
 @Slf4j
 public final class TbMsg implements Serializable {
@@ -110,11 +107,10 @@ public final class TbMsg implements Serializable {
                 .build();
     }
 
-    public TbMsg copyWithNewCtx() {
+    public TbMsgBuilder copyWithNewCtx() {
         return copy()
                 .ctx(ctx.copy())
-                .callback(TbMsgCallback.EMPTY)
-                .build();
+                .callback(TbMsgCallback.EMPTY);
     }
 
     private TbMsg(String queueName, UUID id, long ts, TbMsgType internalType, String type, EntityId originator, CustomerId customerId, TbMsgMetaData metaData, TbMsgDataType dataType, String data,
@@ -205,18 +201,6 @@ public final class TbMsg implements Serializable {
         return builder.build();
     }
 
-    @Deprecated(forRemoval = true, since = "4.1") // to be removed in 4.2
-    public static TbMsg fromProto(String queueName, TbMsgProto proto, ByteString data, TbMsgCallback callback) {
-        try {
-            if (!data.isEmpty()) {
-                proto = TbMsgProto.parseFrom(data);
-            }
-        } catch (InvalidProtocolBufferException e) {
-            throw new IllegalStateException("Could not parse protobuf for TbMsg", e);
-        }
-        return fromProto(queueName, proto, callback);
-    }
-
     public static TbMsg fromProto(String queueName, TbMsgProto proto, TbMsgCallback callback) {
         TbMsgMetaData metaData = new TbMsgMetaData(proto.getMetaData().getDataMap());
         EntityId entityId = EntityIdFactory.getByTypeAndUuid(proto.getEntityType(), new UUID(proto.getEntityIdMSB(), proto.getEntityIdLSB()));
@@ -264,6 +248,10 @@ public final class TbMsg implements Serializable {
 
     public void pushToStack(RuleChainId ruleChainId, RuleNodeId ruleNodeId) {
         ctx.push(ruleChainId, ruleNodeId);
+    }
+
+    public boolean isAlreadyInStack(RuleChainId ruleChainId, RuleNodeId ruleNodeId) {
+        return ctx.isAlreadyInStack(ruleChainId, ruleNodeId);
     }
 
     public TbMsgProcessingStackItem popFormStack() {
@@ -500,11 +488,11 @@ public final class TbMsg implements Serializable {
 
         public String toString() {
             return "TbMsg.TbMsgBuilder(queueName=" + this.queueName + ", id=" + this.id + ", ts=" + this.ts +
-                   ", type=" + this.type + ", internalType=" + this.internalType + ", originator=" + this.originator +
-                   ", customerId=" + this.customerId + ", metaData=" + this.metaData + ", dataType=" + this.dataType +
-                   ", data=" + this.data + ", ruleChainId=" + this.ruleChainId + ", ruleNodeId=" + this.ruleNodeId +
-                   ", correlationId=" + this.correlationId + ", partition=" + this.partition + ", previousCalculatedFields=" + this.previousCalculatedFieldIds +
-                   ", ctx=" + this.ctx + ", callback=" + this.callback + ")";
+                    ", type=" + this.type + ", internalType=" + this.internalType + ", originator=" + this.originator +
+                    ", customerId=" + this.customerId + ", metaData=" + this.metaData + ", dataType=" + this.dataType +
+                    ", data=" + this.data + ", ruleChainId=" + this.ruleChainId + ", ruleNodeId=" + this.ruleNodeId +
+                    ", correlationId=" + this.correlationId + ", partition=" + this.partition + ", previousCalculatedFields=" + this.previousCalculatedFieldIds +
+                    ", ctx=" + this.ctx + ", callback=" + this.callback + ")";
         }
 
     }

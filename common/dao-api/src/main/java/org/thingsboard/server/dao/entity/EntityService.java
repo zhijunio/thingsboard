@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 package org.thingsboard.server.dao.entity;
 
+import com.google.common.util.concurrent.FluentFuture;
+import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.EntityInfo;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -38,6 +40,8 @@ public interface EntityService {
 
     Optional<CustomerId> fetchEntityCustomerId(TenantId tenantId, EntityId entityId);
 
+    FluentFuture<Optional<CustomerId>> fetchEntityCustomerIdAsync(TenantId tenantId, EntityId entityId);
+
     Optional<HasId<?>> fetchEntity(TenantId tenantId, EntityId entityId);
 
     Map<EntityId, EntityInfo> fetchEntityInfos(TenantId tenantId, CustomerId customerId, Set<EntityId> entityIds);
@@ -47,4 +51,7 @@ public interface EntityService {
     long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query);
 
     PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query);
+
+    ListenableFuture<PageData<EntityData>> findEntityDataByQueryAsync(TenantId tenantId, CustomerId customerId, EntityDataQuery query);
+
 }

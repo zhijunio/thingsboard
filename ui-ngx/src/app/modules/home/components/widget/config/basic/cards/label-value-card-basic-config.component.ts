@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2025 The Thingsboard Authors
+/// Copyright © 2016-2026 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import {
   datasourcesHasAggregation,
   datasourcesHasOnlyComparisonAggregation,
   WidgetConfig,
+  widgetTitleAutocompleteValues,
 } from '@shared/models/widget.models';
 import { WidgetConfigComponent } from '@home/components/widget/widget-config.component';
 import { formatValue, isUndefined } from '@core/utils';
@@ -40,9 +41,10 @@ import {
 import { getSourceTbUnitSymbol } from '@shared/models/unit.models';
 
 @Component({
-  selector: 'tb-label-value-card-basic-config',
-  templateUrl: './label-value-card-basic-config.component.html',
-  styleUrls: ['../basic-config.scss']
+    selector: 'tb-label-value-card-basic-config',
+    templateUrl: './label-value-card-basic-config.component.html',
+    styleUrls: ['../basic-config.scss'],
+    standalone: false
 })
 export class LabelValueCardBasicConfigComponent extends BasicWidgetConfigComponent {
 
@@ -60,6 +62,8 @@ export class LabelValueCardBasicConfigComponent extends BasicWidgetConfigCompone
 
   valuePreviewFn = this._valuePreviewFn.bind(this);
 
+  predefinedValues = widgetTitleAutocompleteValues;
+  
   constructor(protected store: Store<AppState>,
               protected widgetConfigComponent: WidgetConfigComponent,
               private fb: UntypedFormBuilder) {

@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2025 The Thingsboard Authors
+/// Copyright © 2016-2026 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -21,17 +21,18 @@ import { AliasEntityType, EntityType, entityTypeTranslations } from '@app/shared
 import { EntityService } from '@core/http/entity.service';
 import { coerceBoolean } from '@shared/decorators/coercion';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { MatFormFieldAppearance } from '@angular/material/form-field';
+import { MatFormFieldAppearance, SubscriptSizing } from '@angular/material/form-field';
 
 @Component({
-  selector: 'tb-entity-type-select',
-  templateUrl: './entity-type-select.component.html',
-  styleUrls: ['./entity-type-select.component.scss'],
-  providers: [{
-    provide: NG_VALUE_ACCESSOR,
-    useExisting: forwardRef(() => EntityTypeSelectComponent),
-    multi: true
-  }]
+    selector: 'tb-entity-type-select',
+    templateUrl: './entity-type-select.component.html',
+    styleUrls: ['./entity-type-select.component.scss'],
+    providers: [{
+            provide: NG_VALUE_ACCESSOR,
+            useExisting: forwardRef(() => EntityTypeSelectComponent),
+            multi: true
+        }],
+    standalone: false
 })
 export class EntityTypeSelectComponent implements ControlValueAccessor, OnInit, OnChanges {
 
@@ -52,8 +53,16 @@ export class EntityTypeSelectComponent implements ControlValueAccessor, OnInit, 
   @coerceBoolean()
   showLabel: boolean;
 
+  private labelValue = this.translate.instant('entity.type');
+
+  get label(): string {
+    return this.labelValue;
+  }
+
   @Input()
-  label = this.translate.instant('entity.type');
+  set label(value: string) {
+    this.labelValue = value ?? this.translate.instant('entity.type');
+  }
 
   @Input()
   @coerceBoolean()
@@ -67,6 +76,9 @@ export class EntityTypeSelectComponent implements ControlValueAccessor, OnInit, 
 
   @Input()
   appearance: MatFormFieldAppearance = 'fill';
+
+  @Input()
+  subscriptSizing: SubscriptSizing = 'fixed';
 
   @Input()
   @coerceBoolean()
@@ -161,13 +173,17 @@ export class EntityTypeSelectComponent implements ControlValueAccessor, OnInit, 
     }
   }
 
-  displayEntityTypeFn(entityType?: EntityType | AliasEntityType | null): string | undefined {
-    if (this.additionEntityTypes[entityType]) {
-      return this.additionEntityTypes[entityType];
+  displayEntityTypeFn(entityType?: EntityType | AliasEntityType | string | null): string | undefined {
+    if (this.additionEntityTypes[entityType as EntityType]) {
+      return this.additionEntityTypes[entityType as EntityType];
     } else if (entityType) {
       return this.translate.instant(entityTypeTranslations.get(entityType as EntityType).type);
     } else {
       return '';
     }
+  }
+
+  markAsTouched(): void {
+    this.entityTypeFormGroup.get('entityType').markAsTouched();
   }
 }

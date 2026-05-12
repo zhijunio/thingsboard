@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,8 +43,19 @@ enum EdgeVersion {
   V_3_9_0 = 9;
   V_4_0_0 = 10;
   V_4_1_0 = 11;
+  V_4_2_0 = 12;
+  V_4_3_0 = 13;
+  V_4_2_1_2 = 14;
+  V_4_2_2 = 4220;
+  V_4_2_2_1 = 4221;
+  V_4_2_2_2 = 4222;
+  V_4_3_0_1 = 15;
+  V_4_3_1 = 4310;
+  V_4_3_1_1 = 4311;
+  V_4_3_1_2 = 4312;
+  V_4_4_0 = 4400;
 
-  V_LATEST = 999;
+  V_LATEST = 99999;
 }
 
 /**
@@ -132,6 +143,19 @@ message CalculatedFieldUpdateMsg{
   string entity = 4;
 }
 
+message AiModelUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message ApiKeyUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
 
 message EntityDataProto {
   int64 entityIdMSB = 1;
@@ -440,6 +464,10 @@ message UplinkMsg {
   repeated RuleChainMetadataUpdateMsg ruleChainMetadataUpdateMsg = 24;
   repeated CalculatedFieldUpdateMsg calculatedFieldUpdateMsg = 25;
   repeated CalculatedFieldRequestMsg calculatedFieldRequestMsg = 26;
+  repeated AiModelUpdateMsg aiModelUpdateMsg = 27;
+  repeated UserUpdateMsg userUpdateMsg = 28;
+  repeated UserCredentialsUpdateMsg userCredentialsUpdateMsg = 29;
+  repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 30;
 }
 
 message UplinkResponseMsg {
@@ -490,4 +518,6 @@ message DownlinkMsg {
   repeated NotificationTemplateUpdateMsg notificationTemplateUpdateMsg = 33;
   repeated OAuth2DomainUpdateMsg oAuth2DomainUpdateMsg = 34;
   repeated CalculatedFieldUpdateMsg calculatedFieldUpdateMsg = 35;
+  repeated AiModelUpdateMsg aiModelUpdateMsg = 36;
+  repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 37;
 }

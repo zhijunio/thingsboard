@@ -1,5 +1,5 @@
 --
--- Copyright © 2016-2025 The Thingsboard Authors
+-- Copyright © 2016-2026 The Thingsboard Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -14,24 +14,14 @@
 -- limitations under the License.
 --
 
--- UPDATE OTA PACKAGE EXTERNAL ID START
+-- CALCULATED FIELD ADDITIONAL INFO ADDITION START
 
-ALTER TABLE ota_package
-    ADD COLUMN IF NOT EXISTS external_id uuid;
-ALTER TABLE ota_package
-    ADD CONSTRAINT ota_package_external_id_unq_key UNIQUE (tenant_id, external_id);
+ALTER TABLE calculated_field ADD COLUMN IF NOT EXISTS additional_info varchar;
 
--- UPDATE OTA PACKAGE EXTERNAL ID END
+-- CALCULATED FIELD ADDITIONAL INFO ADDITION END
 
--- DROP INDEXES THAT DUPLICATE UNIQUE CONSTRAINT START
+-- RULE CHAIN NOTES MIGRATION START
 
-DROP INDEX IF EXISTS idx_device_external_id;
-DROP INDEX IF EXISTS idx_device_profile_external_id;
-DROP INDEX IF EXISTS idx_asset_external_id;
-DROP INDEX IF EXISTS idx_entity_view_external_id;
-DROP INDEX IF EXISTS idx_rule_chain_external_id;
-DROP INDEX IF EXISTS idx_dashboard_external_id;
-DROP INDEX IF EXISTS idx_customer_external_id;
-DROP INDEX IF EXISTS idx_widgets_bundle_external_id;
+ALTER TABLE rule_chain ADD COLUMN IF NOT EXISTS notes varchar(1000000);
 
--- DROP INDEXES THAT DUPLICATE UNIQUE CONSTRAINT END
+-- RULE CHAIN NOTES MIGRATION END

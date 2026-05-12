@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.thingsboard.server.dao.service;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Customer;
@@ -59,10 +60,13 @@ import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.user.UserService;
+import org.thingsboard.server.exception.DataValidationException;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @DaoSqlTest
 public class AlarmServiceTest extends AbstractServiceTest {
@@ -211,7 +215,7 @@ public class AlarmServiceTest extends AbstractServiceTest {
         Assert.assertNotNull(alarms.getData());
         Assert.assertEquals(0, alarms.getData().size());
 
-        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null);
+        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null, true);
         created = alarmService.findAlarmInfoById(tenantId, created.getId());
 
         alarms = alarmService.findAlarms(tenantId, AlarmQuery.builder()
@@ -319,7 +323,7 @@ public class AlarmServiceTest extends AbstractServiceTest {
         Assert.assertNotNull(alarms.getData());
         Assert.assertEquals(0, alarms.getData().size());
 
-        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null);
+        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null, true);
         created = alarmService.findAlarmInfoById(tenantId, created.getId());
 
         alarms = alarmService.findAlarmsV2(tenantId, AlarmQueryV2.builder()
@@ -622,7 +626,7 @@ public class AlarmServiceTest extends AbstractServiceTest {
                 .severity(AlarmSeverity.MAJOR)
                 .startTs(System.currentTimeMillis()).build());
         AlarmInfo alarm1 = result.getAlarm();
-        alarmService.clearAlarm(tenantId, alarm1.getId(), System.currentTimeMillis(), null);
+        alarmService.clearAlarm(tenantId, alarm1.getId(), System.currentTimeMillis(), null, true);
 
         result = alarmService.createAlarm(AlarmCreateOrUpdateActiveRequest.builder()
                 .tenantId(tenantId)
@@ -632,7 +636,7 @@ public class AlarmServiceTest extends AbstractServiceTest {
                 .startTs(System.currentTimeMillis()).build());
         AlarmInfo alarm2 = result.getAlarm();
         alarmService.acknowledgeAlarm(tenantId, alarm2.getId(), System.currentTimeMillis());
-        alarmService.clearAlarm(tenantId, alarm2.getId(), System.currentTimeMillis(), null);
+        alarmService.clearAlarm(tenantId, alarm2.getId(), System.currentTimeMillis(), null, true);
 
         result = alarmService.createAlarm(AlarmCreateOrUpdateActiveRequest.builder()
                 .tenantId(tenantId)
@@ -852,7 +856,7 @@ public class AlarmServiceTest extends AbstractServiceTest {
 
         Assert.assertEquals(1, alarmsCount);
 
-        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null);
+        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null, true);
         created = alarmService.findAlarmInfoById(tenantId, created.getId());
 
         alarmsCount = alarmService.countAlarmsByQuery(tenantId, null, countQuery);
@@ -974,17 +978,41 @@ public class AlarmServiceTest extends AbstractServiceTest {
         alarmsCount = alarmService.countAlarmsByQuery(tenantId, null, countQuery, List.of(parentId));
         Assert.assertEquals(1, alarmsCount);
 
+        alarmsCount = alarmService.countAlarmsByQuery(tenantId, null, countQuery, List.of(childId, parentId));
+        Assert.assertEquals(2, alarmsCount);
+
         created = alarmService.acknowledgeAlarm(tenantId, created.getId(), System.currentTimeMillis()).getAlarm();
 
         countQuery.setStatusList(List.of(AlarmSearchStatus.UNACK));
         alarmsCount = alarmService.countAlarmsByQuery(tenantId, null, countQuery, List.of(childId));
         Assert.assertEquals(0, alarmsCount);
 
-        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null);
+        alarmService.clearAlarm(tenantId, created.getId(), System.currentTimeMillis(), null, true);
 
         countQuery.setStatusList(List.of(AlarmSearchStatus.CLEARED));
         alarmsCount = alarmService.countAlarmsByQuery(tenantId, null, countQuery, List.of(childId));
         Assert.assertEquals(1, alarmsCount);
+    }
+
+    @Test
+    public void testShouldFailToCreateAlarmWithBadType() {
+        AssetId originatorId = new AssetId(Uuids.timeBased());
+
+        long ts = System.currentTimeMillis();
+        AlarmCreateOrUpdateActiveRequest request = AlarmCreateOrUpdateActiveRequest.builder()
+                .tenantId(tenantId)
+                .originator(originatorId)
+                .type("<img src=1 onerror=alert()>")
+                .severity(AlarmSeverity.CRITICAL)
+                .startTs(ts).build();
+
+        Assertions.assertThrows(DataValidationException.class, () -> {
+            alarmService.createAlarm(request);
+        });
+
+        request.setType(TEST_ALARM);
+        AlarmApiCallResult result = alarmService.createAlarm(request);
+        assertThat(result.getAlarm().getId()).isNotNull();
     }
 
 }

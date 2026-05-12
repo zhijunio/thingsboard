@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@ package org.thingsboard.server.service.queue.processing;
 import jakarta.annotation.PostConstruct;
 import org.springframework.context.ApplicationEventPublisher;
 import org.thingsboard.server.actors.ActorSystemContext;
+import org.thingsboard.server.dao.resource.TbResourceDataCache;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.queue.discovery.PartitionService;
 import org.thingsboard.server.queue.discovery.event.PartitionChangeEvent;
 import org.thingsboard.server.queue.util.AfterStartUp;
 import org.thingsboard.server.service.apiusage.TbApiUsageStateService;
-import org.thingsboard.server.service.cf.CalculatedFieldCache;
 import org.thingsboard.server.service.profile.TbAssetProfileCache;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
 import org.thingsboard.server.service.security.auth.jwt.settings.JwtSettingsService;
@@ -43,12 +43,12 @@ public abstract class AbstractPartitionBasedConsumerService<N extends com.google
                                                  TbTenantProfileCache tenantProfileCache,
                                                  TbDeviceProfileCache deviceProfileCache,
                                                  TbAssetProfileCache assetProfileCache,
-                                                 CalculatedFieldCache calculatedFieldCache,
+                                                 TbResourceDataCache tbResourceDataCache,
                                                  TbApiUsageStateService apiUsageStateService,
                                                  PartitionService partitionService,
                                                  ApplicationEventPublisher eventPublisher,
                                                  JwtSettingsService jwtSettingsService) {
-        super(actorContext, tenantProfileCache, deviceProfileCache, assetProfileCache, calculatedFieldCache, apiUsageStateService, partitionService, eventPublisher, jwtSettingsService);
+        super(actorContext, tenantProfileCache, deviceProfileCache, assetProfileCache, tbResourceDataCache, apiUsageStateService, partitionService, eventPublisher, jwtSettingsService);
     }
 
     @PostConstruct

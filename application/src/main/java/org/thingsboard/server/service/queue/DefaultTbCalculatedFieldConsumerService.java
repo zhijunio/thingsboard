@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.thingsboard.server.actors.ActorSystemContext;
+import org.thingsboard.server.actors.calculatedField.CalculatedFieldEntityActionEventMsg;
 import org.thingsboard.server.actors.calculatedField.CalculatedFieldLinkedTelemetryMsg;
 import org.thingsboard.server.actors.calculatedField.CalculatedFieldTelemetryMsg;
 import org.thingsboard.server.common.data.DataConstants;
@@ -35,6 +36,7 @@ import org.thingsboard.server.common.msg.plugin.ComponentLifecycleMsg;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TbCallback;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
+import org.thingsboard.server.dao.resource.TbResourceDataCache;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.gen.transport.TransportProtos.CalculatedFieldLinkedTelemetryMsgProto;
 import org.thingsboard.server.gen.transport.TransportProtos.CalculatedFieldTelemetryMsgProto;
@@ -49,7 +51,6 @@ import org.thingsboard.server.queue.discovery.event.PartitionChangeEvent;
 import org.thingsboard.server.queue.provider.TbRuleEngineQueueFactory;
 import org.thingsboard.server.queue.util.TbRuleEngineComponent;
 import org.thingsboard.server.service.apiusage.TbApiUsageStateService;
-import org.thingsboard.server.service.cf.CalculatedFieldCache;
 import org.thingsboard.server.service.cf.CalculatedFieldStateService;
 import org.thingsboard.server.service.profile.TbAssetProfileCache;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
@@ -83,14 +84,14 @@ public class DefaultTbCalculatedFieldConsumerService extends AbstractPartitionBa
                                                    ActorSystemContext actorContext,
                                                    TbDeviceProfileCache deviceProfileCache,
                                                    TbAssetProfileCache assetProfileCache,
+                                                   TbResourceDataCache tbResourceDataCache,
                                                    TbTenantProfileCache tenantProfileCache,
                                                    TbApiUsageStateService apiUsageStateService,
                                                    PartitionService partitionService,
                                                    ApplicationEventPublisher eventPublisher,
                                                    JwtSettingsService jwtSettingsService,
-                                                   CalculatedFieldCache calculatedFieldCache,
                                                    CalculatedFieldStateService stateService) {
-        super(actorContext, tenantProfileCache, deviceProfileCache, assetProfileCache, calculatedFieldCache, apiUsageStateService, partitionService,
+        super(actorContext, tenantProfileCache, deviceProfileCache, assetProfileCache, tbResourceDataCache, apiUsageStateService, partitionService,
                 eventPublisher, jwtSettingsService);
         this.queueFactory = tbQueueFactory;
         this.stateService = stateService;
@@ -144,26 +145,21 @@ public class DefaultTbCalculatedFieldConsumerService extends AbstractPartitionBa
     private void processMsgs(List<TbProtoQueueMsg<ToCalculatedFieldMsg>> msgs, TbQueueConsumer<TbProtoQueueMsg<ToCalculatedFieldMsg>> consumer, Object consumerKey, QueueConfig config) throws Exception {
         List<IdMsgPair<ToCalculatedFieldMsg>> orderedMsgList = msgs.stream().map(msg -> new IdMsgPair<>(UUID.randomUUID(), msg)).toList();
         ConcurrentMap<UUID, TbProtoQueueMsg<ToCalculatedFieldMsg>> pendingMap = orderedMsgList.stream().collect(
-                Collectors.toConcurrentMap(IdMsgPair::getUuid, IdMsgPair::getMsg));
+                Collectors.toConcurrentMap(IdMsgPair::uuid, IdMsgPair::msg));
         CountDownLatch processingTimeoutLatch = new CountDownLatch(1);
         TbPackProcessingContext<TbProtoQueueMsg<ToCalculatedFieldMsg>> ctx = new TbPackProcessingContext<>(
                 processingTimeoutLatch, pendingMap, new ConcurrentHashMap<>());
         PendingMsgHolder<ToCalculatedFieldMsg> pendingMsgHolder = new PendingMsgHolder<>();
         Future<?> packSubmitFuture = consumersExecutor.submit(() -> {
             orderedMsgList.forEach((element) -> {
-                UUID id = element.getUuid();
-                TbProtoQueueMsg<ToCalculatedFieldMsg> msg = element.getMsg();
+                UUID id = element.uuid();
+                TbProtoQueueMsg<ToCalculatedFieldMsg> msg = element.msg();
                 log.trace("[{}] Creating main callback for message: {}", id, msg.getValue());
                 TbCallback callback = new TbPackCallback<>(id, ctx);
                 try {
                     ToCalculatedFieldMsg toCfMsg = msg.getValue();
                     pendingMsgHolder.setMsg(toCfMsg);
-                    if (toCfMsg.hasTelemetryMsg()) {
-                        log.trace("[{}] Forwarding regular telemetry message for processing {}", id, toCfMsg.getTelemetryMsg());
-                        forwardToActorSystem(toCfMsg.getTelemetryMsg(), callback);
-                    } else if (toCfMsg.hasLinkedTelemetryMsg()) {
-                        forwardToActorSystem(toCfMsg.getLinkedTelemetryMsg(), callback);
-                    }
+                    processMsg(toCfMsg, id, callback);
                 } catch (Throwable e) {
                     log.warn("[{}] Failed to process message: {}", id, msg, e);
                     callback.onFailure(e);
@@ -179,6 +175,17 @@ public class DefaultTbCalculatedFieldConsumerService extends AbstractPartitionBa
             ctx.getFailedMap().forEach((id, msg) -> log.warn("[{}] Failed to process message: {}", id, msg.getValue()));
         }
         consumer.commit();
+    }
+
+    private void processMsg(ToCalculatedFieldMsg toCfMsg, UUID id, TbCallback callback) {
+        if (toCfMsg.hasTelemetryMsg()) {
+            log.trace("[{}] Forwarding regular telemetry message for processing {}", id, toCfMsg.getTelemetryMsg());
+            forwardToActorSystem(toCfMsg.getTelemetryMsg(), callback);
+        } else if (toCfMsg.hasLinkedTelemetryMsg()) {
+            forwardToActorSystem(toCfMsg.getLinkedTelemetryMsg(), callback);
+        } else if (toCfMsg.hasEventMsg()) {
+            actorContext.tell(CalculatedFieldEntityActionEventMsg.fromProto(toCfMsg.getEventMsg(), callback));
+        }
     }
 
     @Override

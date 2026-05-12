@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2025 The Thingsboard Authors
+ * Copyright © 2016-2026 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.thingsboard.server.cache.TbCacheValueWrapper;
 import org.thingsboard.server.cache.VersionedTbCache;
 import org.thingsboard.server.common.data.AttributeScope;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.ObjectType;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.edqs.AttributeKv;
@@ -65,6 +66,7 @@ import static org.thingsboard.server.dao.attributes.AttributeUtils.validate;
 @Primary
 @Slf4j
 public class CachedAttributesService implements AttributesService {
+
     private static final String STATS_NAME = "attributes.cache";
     public static final String LOCAL_CACHE_TYPE = "caffeine";
 
@@ -211,12 +213,27 @@ public class CachedAttributesService implements AttributesService {
     }
 
     @Override
-    public List<String> findAllKeysByEntityIds(TenantId tenantId, List<EntityId> entityIds, String scope) {
-        if (StringUtils.isEmpty(scope)) {
+    public List<String> findAllKeysByEntityIdsAndScope(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope) {
+        if (scope == null) {
             return attributesDao.findAllKeysByEntityIds(tenantId, entityIds);
         } else {
-            return attributesDao.findAllKeysByEntityIdsAndAttributeType(tenantId, entityIds, scope);
+            return attributesDao.findAllKeysByEntityIdsAndScope(tenantId, entityIds, scope);
         }
+    }
+
+    @Override
+    public ListenableFuture<List<String>> findAllKeysByEntityIdsAndScopeAsync(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope) {
+        return attributesDao.findAllKeysByEntityIdsAndScopeAsync(tenantId, entityIds, scope);
+    }
+
+    @Override
+    public List<AttributeKvEntry> findLatestByEntityIdsAndScope(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope) {
+        return attributesDao.findLatestByEntityIdsAndScope(tenantId, entityIds, scope);
+    }
+
+    @Override
+    public ListenableFuture<List<AttributeKvEntry>> findLatestByEntityIdsAndScopeAsync(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope) {
+        return attributesDao.findLatestByEntityIdsAndScopeAsync(tenantId, entityIds, scope);
     }
 
     @Override
@@ -239,7 +256,8 @@ public class CachedAttributesService implements AttributesService {
             ListenableFuture<Long> future = Futures.transform(attributesDao.save(tenantId, entityId, scope, attribute), version -> {
                 BaseAttributeKvEntry attributeKvEntry = new BaseAttributeKvEntry(((BaseAttributeKvEntry) attribute).getKv(), attribute.getLastUpdateTs(), version);
                 put(entityId, scope, attributeKvEntry);
-                edqsService.onUpdate(tenantId, ObjectType.ATTRIBUTE_KV, new AttributeKv(entityId, scope, attributeKvEntry, version));
+                TenantId edqsTenantId = entityId.getEntityType() == EntityType.TENANT ? (TenantId) entityId : tenantId;
+                edqsService.onUpdate(edqsTenantId, ObjectType.ATTRIBUTE_KV, new AttributeKv(entityId, scope, attributeKvEntry, version));
                 return version;
             }, cacheExecutor);
             futures.add(future);
@@ -263,7 +281,8 @@ public class CachedAttributesService implements AttributesService {
             Long version = keyVersionPair.getSecond();
             cache.evict(new AttributeCacheKey(scope, entityId, key), version);
             if (version != null) {
-                edqsService.onDelete(tenantId, ObjectType.ATTRIBUTE_KV, new AttributeKv(entityId, scope, key, version));
+                TenantId edqsTenantId = entityId.getEntityType() == EntityType.TENANT ? (TenantId) entityId : tenantId;
+                edqsService.onDelete(edqsTenantId, ObjectType.ATTRIBUTE_KV, new AttributeKv(entityId, scope, key, version));
             }
             return key;
         }, cacheExecutor)).toList());

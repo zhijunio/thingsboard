@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2025 The Thingsboard Authors
+/// Copyright © 2016-2026 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -23,16 +23,21 @@ import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { baseDetailsPageByEntityType, EntityType } from '@shared/models/entity-type.models';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { TranslateService } from '@ngx-translate/core';
-import { serverErrorCodesTranslations } from '@shared/models/constants';
+import { httpStatusMessageMap, serverErrorCodesTranslations } from '@shared/models/constants';
 import { SubscriptionEntityInfo } from '@core/api/widget-api.models';
 import {
   CompiledTbFunction,
-  compileTbFunction, GenericFunction,
+  compileTbFunction,
+  GenericFunction,
   isNotEmptyTbFunction,
   TbFunction
 } from '@shared/models/js-function.models';
+import { DomSanitizer } from '@angular/platform-browser';
+import { SecurityContext } from '@angular/core';
+import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 
 const varsRegex = /\${([^}]*)}/g;
+const emailRegex = /^[A-Z0-9_!#$%&'*+/=?`{|}~^.-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
 export function onParentScrollOrWindowResize(el: Node): Observable<Event> {
   const scrollSubject = new Subject<Event>();
@@ -191,6 +196,23 @@ export function deleteNullProperties(obj: any) {
     } else if (Array.isArray(obj[propName])) {
       (obj[propName] as any[]).forEach((elem) => {
         deleteNullProperties(elem);
+      });
+    }
+  });
+}
+
+export function deleteFalseProperties(obj: Record<string, any>): void  {
+  if (isUndefinedOrNull(obj)) {
+    return;
+  }
+  Object.keys(obj).forEach((propName) => {
+    if (obj[propName] === false || isUndefinedOrNull(obj[propName])) {
+      delete obj[propName];
+    } else if (isObject(obj[propName])) {
+      deleteFalseProperties(obj[propName]);
+    } else if (Array.isArray(obj[propName])) {
+      (obj[propName] as any[]).forEach((elem) => {
+        deleteFalseProperties(elem);
       });
     }
   });
@@ -399,7 +421,7 @@ export function mergeDeep<T>(target: T, ...sources: T[]): T {
 
 function ignoreArrayMergeFunc(target: any, sources: any) {
   if (_.isArray(target)) {
-    return sources;
+    return deepClone(sources);
   }
 }
 
@@ -773,6 +795,74 @@ export function deepTrim<T>(obj: T): T {
   }, (Array.isArray(obj) ? [] : {}) as T);
 }
 
+const isValidValue = (value: any): boolean => {
+  return (
+    value !== undefined &&
+    value !== null &&
+    value !== '' &&
+    !Number.isNaN(value)
+  );
+};
+
+export function deepClean<T extends Record<string, any> | any[]>(obj: T, {
+  cleanKeys = [],
+  cleanOnlyKey = false
+} = {}): T {
+  const keysToRemove = new Set(cleanKeys);
+
+  const clean = (input: any): any => {
+    if (Array.isArray(input)) {
+      const result: any[] = [];
+      for (const item of input) {
+        const value = clean(item);
+
+        if (cleanOnlyKey) {
+          result.push(value);
+          continue;
+        }
+
+        if (isValidValue(value)) {
+          const isEmptyArray = Array.isArray(value) && value.length === 0;
+          const isEmptyObj = isLiteralObject(value) && Object.keys(value).length === 0;
+
+          if (!isEmptyArray && !isEmptyObj) {
+            result.push(value);
+          }
+        }
+      }
+      return result;
+    }
+
+    if (isLiteralObject(input)) {
+      const result: Record<string, any> = {};
+
+      for (const key in input) {
+        if (keysToRemove.has(key)) continue;
+
+        const value = clean(input[key]);
+
+        if (cleanOnlyKey) {
+          result[key] = value;
+          continue;
+        }
+
+        if (isValidValue(value)) {
+          const isEmptyArray = Array.isArray(value) && value.length === 0;
+          const isEmptyObj = isLiteralObject(value) && Object.keys(value).length === 0;
+
+          if (!isEmptyArray && !isEmptyObj) {
+            result[key] = value;
+          }
+        }
+      }
+      return result;
+    }
+    return input;
+  };
+
+  return clean(obj);
+}
+
 export function generateSecret(length?: number): string {
   if (isUndefined(length) || length == null) {
     length = 1;
@@ -809,7 +899,7 @@ export function getEntityDetailsPageURL(id: string, entityType: EntityType): str
 }
 
 export function parseHttpErrorMessage(errorResponse: HttpErrorResponse,
-                                      translate: TranslateService, responseType?: string): {message: string; timeout: number} {
+                                      translate: TranslateService, responseType?: string, sanitizer?:DomSanitizer): {message: string; timeout: number} {
   let error = null;
   let errorMessage: string;
   let timeout = 0;
@@ -820,11 +910,13 @@ export function parseHttpErrorMessage(errorResponse: HttpErrorResponse,
   } else {
     error = errorResponse.error;
   }
-  if (error && !error.message) {
-    errorMessage = prepareMessageFromData(error);
-  } else if (error && error.message) {
+  if (error && error.message) {
     errorMessage = error.message;
     timeout = error.timeout ? error.timeout : 0;
+  } else if (isProxyError(errorResponse)) {
+    errorMessage = httpStatusMessageMap.get(errorResponse.status);
+  } else if (error) {
+    errorMessage = prepareMessageFromData(error);
   } else {
     errorMessage = `Unhandled error code ${error ? error.status : '\'Unknown\''}`;
   }
@@ -836,6 +928,9 @@ export function parseHttpErrorMessage(errorResponse: HttpErrorResponse,
     }
     errorText += errorKey ? translate.instant(errorKey) : errorResponse.statusText;
     errorMessage = errorText;
+  }
+  if(sanitizer) {
+    errorMessage = sanitizer.sanitize(SecurityContext.HTML,errorMessage);
   }
   return {message: errorMessage, timeout};
 }
@@ -856,6 +951,14 @@ function prepareMessageFromData(data): string {
   } else {
     return data;
   }
+}
+
+function isProxyError(errorResponse: HttpErrorResponse): boolean {
+  if (!httpStatusMessageMap.has(errorResponse.status)) {
+    return false;
+  }
+  const error = errorResponse.error;
+  return !error || typeof error === 'string' || (typeof error === 'object' && !error.message);
 }
 
 export const genNextLabel = (name: string, datasources: Datasource[]): string => {
@@ -958,3 +1061,45 @@ export const unwrapModule = (module: any) : any => {
     return module;
   }
 };
+
+export const trimDefaultValues = (input: Record<string, any>, defaults: Record<string, any>): Record<string, any> => {
+  const result: Record<string, any> = {};
+
+  for (const key in input) {
+    if (!(key in defaults)) {
+      result[key] = input[key];
+    } else if (typeof defaults[key] === 'object' && defaults[key] !== null && typeof input[key] === 'object' && input[key] !== null) {
+      const subPatch = trimDefaultValues(input[key], defaults[key]);
+      if (Object.keys(subPatch).length > 0) {
+        result[key] = subPatch;
+      }
+    } else if (defaults[key] !== input[key]) {
+      result[key] = input[key];
+    }
+  }
+
+  for (const key in defaults) {
+    if (!(key in input)) {
+      delete result[key];
+    }
+  }
+
+  return result;
+}
+
+export const validateEmail = (control: AbstractControl): ValidationErrors | null => {
+  if (isUndefinedOrNull(control.value) || (typeof control.value === 'string' && control.value.length === 0)) {
+    return null;
+  }
+  return emailRegex.test(control.value) ? null : {email: true};
+};
+
+export const objectRequired = (): ValidatorFn => {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const value = control.value;
+    if (value && !isObject(value)) {
+      return { objectRequired: true };
+    }
+    return null;
+  };
+}
